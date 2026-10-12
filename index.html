@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voucher Kas Keluar (BKK)</title>
+    <!-- Rancangan awal dari Gemini Canvas (lihat ai-logs/01_gemini_canvas.md), direvisi manual -->
+    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen pb-16">
+
+<header class="bg-slate-900 text-white">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row justify-between gap-2">
+        <div>
+            <h1 class="text-xl font-bold">Sistem Akuntansi GL — Voucher Kas Keluar (BKK)</h1>
+            <p class="text-xs text-slate-400">UTS Pemrograman · Farel Fachreza Rusli · 12030124140334</p>
+        </div>
+        <span id="conn" class="self-start sm:self-center px-3 py-1 rounded-full text-xs bg-amber-500/20 text-amber-300">Menghubungkan…</span>
+    </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 mt-6 space-y-8">
+
+    <!-- ===================== FORM VOUCHER ===================== -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200">
+        <h2 class="px-6 py-4 border-b font-semibold">Formulir Voucher Kas Keluar</h2>
+        <form id="form" class="p-6 space-y-5">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+                <label class="block">Tanggal *
+                    <input type="date" id="trxDate" required class="mt-1 w-full border rounded-lg px-3 py-2">
+                </label>
+                <label class="block">Nomor Bukti *
+                    <input type="text" id="refNo" required class="mt-1 w-full border rounded-lg px-3 py-2 font-mono">
+                </label>
+                <label class="block md:col-span-2">Nama Penyusun *
+                    <input type="text" id="createdBy" required placeholder="Nama staf akuntansi" class="mt-1 w-full border rounded-lg px-3 py-2">
+                </label>
+                <label class="block md:col-span-4">Keterangan *
+                    <input type="text" id="description" required placeholder="Contoh: Pembayaran listrik kantor Oktober" class="mt-1 w-full border rounded-lg px-3 py-2">
+                </label>
+            </div>
+
+            <div class="overflow-x-auto border rounded-xl">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-100 text-xs uppercase text-slate-600">
+                        <tr><th class="p-3 text-left w-1/2">Akun</th><th class="p-3 text-left">Debit (Rp)</th><th class="p-3 text-left">Kredit (Rp)</th><th class="p-3"></th></tr>
+                    </thead>
+                    <tbody id="rows" class="divide-y"></tbody>
+                    <tfoot class="bg-slate-50 font-mono">
+                        <tr>
+                            <td class="p-3 text-right font-sans font-semibold">Total</td>
+                            <td class="p-3" id="totDebit">Rp 0</td>
+                            <td class="p-3" id="totCredit">Rp 0</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td class="p-3 text-right font-sans">Selisih</td>
+                            <td class="p-3" id="diff" colspan="2">Rp 0</td>
+                            <td class="p-3"><span id="badge" class="px-2 py-1 rounded-full text-xs font-bold font-sans bg-rose-100 text-rose-800">TIDAK SEIMBANG</span></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4 md:items-start justify-between">
+                <button type="button" id="addRow" class="px-3 py-2 text-sm rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700">+ Tambah Baris</button>
+                <ul id="reasons" class="flex-1 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3 list-disc pl-6 space-y-0.5"></ul>
+                <button type="submit" id="submit" disabled class="px-6 py-3 rounded-xl text-sm font-semibold text-white bg-indigo-600 disabled:bg-slate-300 disabled:cursor-not-allowed">Posting Voucher</button>
+            </div>
+            <p id="msg" class="text-sm"></p>
+        </form>
+    </section>
+
+    <!-- ===================== JURNAL TERPOSTING ===================== -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200">
+        <div class="px-6 py-4 border-b flex justify-between items-center">
+            <div>
+                <h2 class="font-semibold">Jurnal Terposting (immutable)</h2>
+                <p class="text-xs text-slate-500">Hash SHA-256 dihitung ulang di database setiap kali dimuat. Koreksi hanya lewat jurnal pembalik.</p>
+            </div>
+            <button id="refresh" class="text-xs px-3 py-1.5 rounded-lg border">Segarkan</button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                    <tr><th class="p-3 text-left">Ref</th><th class="p-3 text-left">Tanggal</th><th class="p-3 text-left">Keterangan</th><th class="p-3 text-left">Dibuat oleh</th><th class="p-3 text-right">Total</th><th class="p-3">Hash</th><th class="p-3">Aksi</th></tr>
+                </thead>
+                <tbody id="journals" class="divide-y"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- ===================== AUDIT LOG ===================== -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200">
+        <h2 class="px-6 py-4 border-b font-semibold">Audit Log (20 entri terbaru, append-only)</h2>
+        <div class="overflow-x-auto">
+            <table class="w-full text-xs font-mono">
+                <thead class="bg-slate-50 uppercase text-slate-500">
+                    <tr><th class="p-2 text-left">Waktu</th><th class="p-2 text-left">Tabel</th><th class="p-2 text-left">ID</th><th class="p-2 text-left">Aksi</th><th class="p-2 text-left">Oleh</th></tr>
+                </thead>
+                <tbody id="audit" class="divide-y"></tbody>
+            </table>
+        </div>
+    </section>
+</main>
+
+<script>
+// Kunci publishable Supabase memang untuk browser; keamanan ditegakkan RLS + trigger di database.
+const SUPABASE_URL = 'https://vgwvcfqpclewbiymmglv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_fJOfz0opNXQBVlJCjLq7oQ_juyLvwJp';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const $ = (id) => document.getElementById(id);
+const rupiah = (sen) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(sen / 100);
+// Perbaikan atas kode Canvas: data dari DB di-escape sebelum masuk innerHTML (cegah XSS)
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+let accounts = [];   // {account_id:number, account_code, account_name, is_cash}
+
+// ---------- Baris jurnal ----------
+function addRow() {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td class="p-2"><select class="acc w-full border rounded-lg px-2 py-2">
+            <option value="">— Pilih akun —</option>
+            ${accounts.map(a => `<option value="${a.account_id}">${esc(a.account_code)} - ${esc(a.account_name)}${a.is_cash ? ' (Kas/Setara Kas)' : ''}</option>`).join('')}
+        </select></td>
+        <td class="p-2"><input type="number" min="0" step="0.01" placeholder="0" class="debit w-full border rounded-lg px-2 py-2 font-mono"></td>
+        <td class="p-2"><input type="number" min="0" step="0.01" placeholder="0" class="credit w-full border rounded-lg px-2 py-2 font-mono"></td>
+        <td class="p-2 text-center"><button type="button" class="del text-slate-400 hover:text-rose-600" title="Hapus baris">✕</button></td>`;
+    $('rows').appendChild(tr);
+}
+
+// Nominal disimpan dalam sen (integer) agar penjumlahan tidak terkena galat float
+const sen = (input) => Math.round((parseFloat(input.value) || 0) * 100);
+
+function readLines() {
+    return [...$('rows').children].map(tr => ({
+        account_id: Number(tr.querySelector('.acc').value) || null,   // perbaikan: select = string, DB = number
+        debit: sen(tr.querySelector('.debit')),
+        credit: sen(tr.querySelector('.credit')),
+    }));
+}
+
+// ---------- Live balanced indicator + aturan tombol Submit ----------
+function evaluate() {
+    const lines = readLines();
+    const td = lines.reduce((s, l) => s + l.debit, 0);
+    const tc = lines.reduce((s, l) => s + l.credit, 0);
+    const balanced = td === tc && td > 0;
+    const valid = lines.filter(l => l.account_id && (l.debit > 0 || l.credit > 0));
+    const isCash = (id) => accounts.find(a => a.account_id === id)?.is_cash;
+
+    $('totDebit').textContent = rupiah(td);
+    $('totCredit').textContent = rupiah(tc);
+    $('diff').textContent = rupiah(Math.abs(td - tc));
+    $('badge').textContent = balanced ? 'SEIMBANG' : 'TIDAK SEIMBANG';
+    $('badge').className = 'px-2 py-1 rounded-full text-xs font-bold font-sans ' +
+        (balanced ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800');
+
+    const reasons = [];
+    if (!balanced) reasons.push('Total Debit harus sama dengan Total Kredit dan > 0.');
+    if (valid.length < 2) reasons.push('Minimal 2 baris berisi akun dan nominal.');
+    if (lines.some(l => (l.debit > 0 || l.credit > 0) && !l.account_id)) reasons.push('Ada baris bernominal tanpa akun.');
+    if (lines.some(l => l.debit < 0 || l.credit < 0)) reasons.push('Nominal tidak boleh negatif.');
+    if (!valid.some(l => l.credit > 0 && isCash(l.account_id))) reasons.push('Wajib ada akun Kas/Setara Kas di sisi KREDIT.');
+    if (valid.some(l => l.debit > 0 && isCash(l.account_id))) reasons.push('Akun Kas/Setara Kas tidak boleh di sisi DEBIT pada voucher kas keluar.');
+    ['trxDate', 'refNo', 'createdBy', 'description'].forEach(id => { if (!$(id).value.trim()) reasons.push(`Kolom ${$(id).parentElement.firstChild.textContent.trim()} wajib diisi.`); });
+    if ($('trxDate').value > $('trxDate').max) reasons.push('Tanggal tidak boleh di masa depan.');
+
+    $('reasons').innerHTML = reasons.map(r => `<li>${esc(r)}</li>`).join('');
+    $('reasons').classList.toggle('hidden', reasons.length === 0);
+    $('submit').disabled = reasons.length > 0;
+}
+
+// Perbaikan: tidak me-render ulang tabel tiap ketikan; cukup kosongkan sisi lawan
+$('rows').addEventListener('input', (e) => {
+    const tr = e.target.closest('tr');
+    if (e.target.classList.contains('debit') && e.target.value) tr.querySelector('.credit').value = '';
+    if (e.target.classList.contains('credit') && e.target.value) tr.querySelector('.debit').value = '';
+    evaluate();
+});
+$('rows').addEventListener('change', evaluate);
+$('rows').addEventListener('click', (e) => {
+    if (!e.target.classList.contains('del')) return;
+    if ($('rows').children.length <= 2) return alert('Minimal 2 baris jurnal.');
+    e.target.closest('tr').remove();
+    evaluate();
+});
+$('addRow').addEventListener('click', () => { addRow(); evaluate(); });
+$('form').addEventListener('input', evaluate);
+
+function resetForm() {
+    const now = new Date();
+    const p = (n) => String(n).padStart(2, '0');
+    const today = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+    $('trxDate').value = $('trxDate').max = today;
+    $('refNo').value = `BKK-${today.replaceAll('-', '')}-${p(now.getHours())}${p(now.getMinutes())}`;
+    $('description').value = '';
+    $('rows').innerHTML = '';
+    addRow(); addRow();
+    evaluate();
+}
+
+// ---------- Submit → RPC post_cash_voucher ----------
+$('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('submit').disabled = true;
+    const p_lines = readLines()
+        .filter(l => l.account_id && (l.debit > 0 || l.credit > 0))
+        .map(l => ({ account_id: l.account_id, debit: l.debit / 100, credit: l.credit / 100 }));
+    const { data, error } = await db.rpc('post_cash_voucher', {
+        p_trx_date: $('trxDate').value,
+        p_ref_no: $('refNo').value.trim(),
+        p_description: $('description').value.trim(),
+        p_lines,
+        p_created_by: $('createdBy').value.trim(),
+    });
+    if (error) {
+        $('msg').className = 'text-sm text-rose-700';
+        $('msg').textContent = 'Ditolak server: ' + error.message;   // pesan dari database apa adanya
+        evaluate();
+        return;
+    }
+    $('msg').className = 'text-sm text-emerald-700';
+    $('msg').textContent = `Voucher ${$('refNo').value} berhasil di-POST (header_id ${data}).`;
+    resetForm();
+    loadJournals(); loadAudit();
+});
+
+// ---------- Jurnal terposting + storno ----------
+async function loadJournals() {
+    const { data, error } = await db.from('v_journal_integrity').select('*').order('header_id', { ascending: false });
+    if (error) { $('journals').innerHTML = `<tr><td colspan="7" class="p-4 text-rose-700">${esc(error.message)}</td></tr>`; return; }
+    $('journals').innerHTML = data.map(j => `
+        <tr>
+            <td class="p-3 font-mono">${esc(j.ref_no)}</td>
+            <td class="p-3">${esc(j.trx_date)}</td>
+            <td class="p-3 max-w-xs truncate" title="${esc(j.description)}">${esc(j.description)}</td>
+            <td class="p-3">${esc(j.created_by)}</td>
+            <td class="p-3 text-right font-mono">${rupiah(Math.round(j.total * 100))}</td>
+            <td class="p-3 text-center" title="${esc(j.hash_checksum)}">${j.hash_valid
+                ? '<span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">✓ Valid</span>'
+                : '<span class="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-800">✗ Diubah!</span>'}</td>
+            <td class="p-3 text-center">${j.reversal_of ? '<span class="text-xs italic text-slate-400">Jurnal pembalik</span>'
+                : j.reversed_by ? '<span class="text-xs text-amber-700">Sudah dibalik</span>'
+                : `<button data-id="${j.header_id}" data-ref="${esc(j.ref_no)}" class="rev text-xs px-3 py-1 rounded-lg border border-amber-200 bg-amber-50 text-amber-700">Buat Jurnal Pembalik</button>`}</td>
+        </tr>`).join('') || '<tr><td colspan="7" class="p-4 text-slate-400">Belum ada jurnal.</td></tr>';
+}
+
+$('journals').addEventListener('click', async (e) => {
+    const b = e.target.closest('.rev');
+    if (!b) return;
+    const reason = prompt(`Alasan membalik jurnal ${b.dataset.ref}:`);
+    if (!reason?.trim()) return;
+    const by = $('createdBy').value.trim() || prompt('Nama pembuat jurnal pembalik:');
+    const { error } = await db.rpc('reverse_journal', { p_header_id: Number(b.dataset.id), p_reason: reason, p_created_by: by });
+    alert(error ? 'Ditolak server: ' + error.message : `Jurnal pembalik REV-${b.dataset.ref} dibuat.`);
+    loadJournals(); loadAudit();
+});
+$('refresh').addEventListener('click', () => { loadJournals(); loadAudit(); });
+
+async function loadAudit() {
+    const { data, error } = await db.from('audit_log')
+        .select('changed_at, table_name, record_id, action, changed_by')
+        .order('log_id', { ascending: false }).limit(20);
+    if (error) return;
+    $('audit').innerHTML = data.map(l => `
+        <tr><td class="p-2">${new Date(l.changed_at).toLocaleString('id-ID')}</td><td class="p-2">${esc(l.table_name)}</td>
+        <td class="p-2">${esc(l.record_id)}</td><td class="p-2 font-bold">${esc(l.action)}</td><td class="p-2">${esc(l.changed_by)}</td></tr>`).join('');
+}
+
+// ---------- Init ----------
+(async () => {
+    const { data, error } = await db.from('chart_of_accounts')
+        .select('account_id, account_code, account_name, is_cash').order('account_code');
+    if (error) { $('conn').textContent = 'Gagal terhubung: ' + error.message; return; }
+    accounts = data;
+    $('conn').textContent = 'Terhubung ke Supabase';
+    $('conn').className = 'self-start sm:self-center px-3 py-1 rounded-full text-xs bg-emerald-500/20 text-emerald-300';
+    resetForm();
+    loadJournals(); loadAudit();
+})();
+</script>
+</body>
+</html>

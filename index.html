@@ -57,7 +57,7 @@
                         <tr>
                             <td class="p-3 text-right font-sans">Selisih</td>
                             <td class="p-3" id="diff" colspan="2">Rp 0</td>
-                            <td class="p-3"><span id="badge" class="px-2 py-1 rounded-full text-xs font-bold font-sans bg-rose-100 text-rose-800">TIDAK SEIMBANG</span></td>
+                            <td class="p-3"><span id="badge" class="whitespace-nowrap px-2 py-1 rounded-full text-xs font-bold font-sans bg-rose-100 text-rose-800">TIDAK SEIMBANG</span></td>
                         </tr>
                     </tfoot>
                 </table>
@@ -156,7 +156,7 @@ function evaluate() {
     $('totCredit').textContent = rupiah(tc);
     $('diff').textContent = rupiah(Math.abs(td - tc));
     $('badge').textContent = balanced ? 'SEIMBANG' : 'TIDAK SEIMBANG';
-    $('badge').className = 'px-2 py-1 rounded-full text-xs font-bold font-sans ' +
+    $('badge').className = 'whitespace-nowrap px-2 py-1 rounded-full text-xs font-bold font-sans ' +
         (balanced ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800');
 
     const reasons = [];
@@ -235,14 +235,14 @@ async function loadJournals() {
     if (error) { $('journals').innerHTML = `<tr><td colspan="7" class="p-4 text-rose-700">${esc(error.message)}</td></tr>`; return; }
     $('journals').innerHTML = data.map(j => `
         <tr>
-            <td class="p-3 font-mono">${esc(j.ref_no)}</td>
-            <td class="p-3">${esc(j.trx_date)}</td>
+            <td class="p-3 font-mono whitespace-nowrap">${esc(j.ref_no)}</td>
+            <td class="p-3 whitespace-nowrap">${esc(j.trx_date)}</td>
             <td class="p-3 max-w-xs truncate" title="${esc(j.description)}">${esc(j.description)}</td>
             <td class="p-3">${esc(j.created_by)}</td>
             <td class="p-3 text-right font-mono">${rupiah(Math.round(j.total * 100))}</td>
             <td class="p-3 text-center" title="${esc(j.hash_checksum)}">${j.hash_valid
-                ? '<span class="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">✓ Valid</span>'
-                : '<span class="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-800">✗ Diubah!</span>'}</td>
+                ? '<span class="whitespace-nowrap px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800">✓ Valid</span>'
+                : '<span class="whitespace-nowrap px-2 py-0.5 rounded-full text-xs bg-rose-100 text-rose-800">✗ Diubah!</span>'}</td>
             <td class="p-3 text-center">${j.reversal_of ? '<span class="text-xs italic text-slate-400">Jurnal pembalik</span>'
                 : j.reversed_by ? '<span class="text-xs text-amber-700">Sudah dibalik</span>'
                 : `<button data-id="${j.header_id}" data-ref="${esc(j.ref_no)}" class="rev text-xs px-3 py-1 rounded-lg border border-amber-200 bg-amber-50 text-amber-700">Buat Jurnal Pembalik</button>`}</td>

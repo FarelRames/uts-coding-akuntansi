@@ -53,3 +53,21 @@ Dua tab SQL Editor = dua koneksi/kasir. Stok BRG-002 = 1.
 ![Kasir B menunggu](img/s2_concurrency_kasir_b_menunggu.jpg)
 ![Kasir A](img/s2_concurrency_kasir_a.jpg)
 ![Kasir B ditolak](img/s2_concurrency_kasir_b.jpg)
+
+## Uji end-to-end form (GitHub Pages → Supabase)
+
+| Langkah | Hasil |
+|---|---|
+| Dr 5203 Beban Sewa 3.000.000 / Cr 1102 Kas di Bank 2.500.000 | Badge **TIDAK SEIMBANG**, selisih Rp 500.000, Submit nonaktif + alasan |
+| Kredit diubah menjadi 3.000.000 | Badge **SEIMBANG**, Submit aktif |
+| Klik *Posting Voucher* | "Voucher BKK-20261013-0658 berhasil di-POST (header_id 20)", hash ✓ Valid; audit log: INSERT header, 2× INSERT baris, UPDATE (posting) |
+
+## Demo deteksi manipulasi (`sql/06_demo_tamper.sql`)
+
+Superuser mematikan `trg_jh_lock`, mengubah keterangan jurnal POSTED `DEMO-TAMPER`, lalu menyalakan trigger lagi.
+Hasil: `v_journal_integrity.hash_valid = false` → form menampilkan **✗ Diubah!**, dan `audit_log` tetap merekam
+`UPDATE` oleh `postgres` dengan nilai lama ("Beli ATK (jurnal demo manipulasi)") dan baru ("…diubah diam-diam jadi Rp500rb").
+Kunci *immutability* bisa dibobol pemilik database, tetapi pembobolan itu **tidak bisa disembunyikan**.
+
+![Form tidak seimbang](img/s3_form_ditolak.png)
+![Jurnal terposting](img/s3_jurnal.png)
